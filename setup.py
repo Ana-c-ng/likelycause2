@@ -10,7 +10,7 @@ setuptools.setup(
     name='likelycause2',
     license="MIT",
     description='Likely cause finds creative ways to identify causes',
-    version='v0.1.2',
+    version='v0.1.3',
     long_description=README,
     url='https://github.com/Ana-c-ng/likelycause',
     packages=setuptools.find_packages(),
