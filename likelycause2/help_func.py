@@ -55,7 +55,8 @@ def last_period (df,interval,periods,date_column,to_past,unique_id='NULL'):
                                     df[(df[unique_id[0]]==df[unique_id[0]][x]) & (df[date_column]==df[prefix][x])][col].sum())
                                              
         else:
-            df['primarykey'] = concatenate_list_data(unique_id)
+            df_clean = df[unique_id]
+            df['primarykey'] = df_clean.sum(axis=1).astype(str)
             for col in to_past:
                 col_name = 'v'+col
                 df[col_name] = df['num'].apply(lambda x: df[col][x]/    
@@ -63,4 +64,3 @@ def last_period (df,interval,periods,date_column,to_past,unique_id='NULL'):
                 
     df = df[~df.isin([np.nan, np.inf, -np.inf]).any(1)]
     return df
-     
