@@ -16,7 +16,7 @@ setuptools.setup(
     packages=setuptools.find_packages(),
     python_requires=">=2.7",
     install_requires=['scipy',
-    'sklearn','statsmodels'],
+    'sklearn','statsmodels','pandas','numpy'],
     classifiers=[
         # Trove classifiers
         # (https://pypi.python.org/pypi?%3Aaction=list_classifiers)

@@ -8,6 +8,8 @@ from sklearn.preprocessing import StandardScaler
 import scipy.stats
 from statsmodels.distributions.empirical_distribution import ECDF
 from datetime import datetime, timedelta
+import numpy as np
+import pandas as pd
 
 def last_period (df,interval,periods,date_column,to_past,unique_id='NULL'):
     """df: the dataframe"""
