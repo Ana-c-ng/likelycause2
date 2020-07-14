@@ -1,4 +1,4 @@
-def bayes_suspects(df,event,suspects,point,interval='NULL',min='NULL'):
+def bayes_suspects_cum(df,event,suspects,point,interval='NULL',min='NULL'):
     """Importing what we need"""
     
     import itertools
@@ -10,6 +10,17 @@ def bayes_suspects(df,event,suspects,point,interval='NULL',min='NULL'):
     import pandas as pd
     import numpy as np
     
+    """Checking the presence of optimal parameters"""
+    if interval == 'NULL':
+        interval = 0.05
+    else:
+        interval = interval
+
+    if min == 'NULL':
+        min = 10
+    else:
+        min = min
+    
     """Defining useful functions"""
     def odd_even(num):
         if (num % 2) == 0:
@@ -17,17 +28,53 @@ def bayes_suspects(df,event,suspects,point,interval='NULL',min='NULL'):
         else:
            return 'Odd'
     
+    def mult_formula_cum(elements,df,point):
+
+        """elements: list of elements, list format"""
+        """df: dataframe"""
+        """point: dictionary"""
+        df_final = pd.DataFrame()
     
-    """Checking the presence of optimal parameters"""
-    if interval == 'NULL':
-            interval = 0.05
-    else:
-            interval = interval
-        
-    if min == 'NULL':
-        min = 10
-    else:
-        min = min
+        for i in range(len(elements)):
+
+            a = 1
+            olist = list(elements[i])
+            #print(olist)
+
+
+            while len(olist)>0:
+                nlist = olist.copy()
+                #print(nlist[0])
+                del nlist[0]
+                #print(nlist)
+
+                dff = df.copy()
+
+                for e in nlist:
+                    dff1 = dff[dff[e]<=point[e]]
+                    dff = dff1.copy()
+
+                """Calculating the ECDF and probabilities"""
+                prob = ECDF(dff[olist[0]])(point[olist[0]])
+                a = prob*a
+                #print(a)
+
+                """Adjusting the list"""
+                olist = nlist.copy()
+                #print(olist)
+
+            final2 = pd.DataFrame(
+                {
+                'name': str(elements[i]),
+                'number_of_variables': len(elements[i]),
+                'prob_ba':a,
+                'number_type':odd_even(len(elements[i]))
+                }, index=[0])
+
+            df_final = pd.concat([df_final,final2])
+
+        return df_final
+
 
     """Getting all possible combinations"""
     all_combinations = []
@@ -37,98 +84,33 @@ def bayes_suspects(df,event,suspects,point,interval='NULL',min='NULL'):
         combinations_list = list(combinations_object)
         all_combinations += combinations_list
 
-    all_combinations
-    df1 = pd.DataFrame()
-    df_final = pd.DataFrame()
-    df_final2 = pd.DataFrame()
+    cond1 = mult_formula_cum(elements = list(all_combinations) ,df = df[df[event]<=point[event]],point = point)
+    cond2 = mult_formula_cum(elements = list(all_combinations) ,df = df,point = point)
 
-
-    """Calculating the combinations joint probabilities"""
-    for i in range(len(all_combinations)):
-        dfr = df[(df[event]>=(1-interval)*point[event])&(df[event]<=(1+interval)*point[event])]
-
-        df1 = dfr.copy()
-        for c in list(all_combinations[i]):
-            cut = point[c]
-            df1 = df1[(df1[c]<=cut*(1+interval))&(df1[c]>=cut*(1-interval))]
-
-        if len(df1)<=min:
-                prob = 0
-        else:
-            try: 
-                prob = scipy.stats.gaussian_kde(df1[c]).integrate_box_1d((1-interval)*point[c],(1+interval)*point[c])
-            except np.linalg.LinAlgError as err:
-                prob = 0
-
-        final2 = pd.DataFrame(
-                        {
-                            'name': str(all_combinations[i]),
-                            'number_of_variables': len(list(all_combinations[i])),
-                            'prob_ba':prob,
-                            'number_type':odd_even(len(list(all_combinations[i])))
-                        }, index=[0])
-
-        df_final = pd.concat([df_final,final2])
-
-        dfr = df.copy()
-        df1 = dfr.copy()
-        for c in list(all_combinations[i]):
-            cut = point[c]
-            df1 = df1[(df1[c]<=cut*(1+interval))&(df1[c]>=cut*(1-interval))]
-
-        if len(df1)<=min:
-                prob = 0
-        else:
-            try: 
-                prob = scipy.stats.gaussian_kde(df1[c]).integrate_box_1d((1-interval)*point[c],(1+interval)*point[c])
-            except np.linalg.LinAlgError as err:
-                prob = 0
-
-        final2 = pd.DataFrame(
-                        {
-                            'name': str(all_combinations[i]),
-                            'number_of_variables': len(list(all_combinations[i])),
-                            'prob_b':prob,
-                            'number_type':odd_even(len(list(all_combinations[i])))
-                        }, index=[0])
-
-        df_final2 = pd.concat([df_final2,final2])
-
-    """Calculating the combinations bayesian probabilities"""
-    df_final = pd.merge(df_final,df_final2,how='inner',on=['name','number_of_variables','number_type'])
-
-    df_final['prob_a'] = scipy.stats.gaussian_kde(df[event]).integrate_box_1d((1-interval)*point[event],(1+interval)*point[event])
-
-    df_final['pbayes'] = df_final['prob_a']*df_final['prob_ba']/df_final['prob_b']
+    prob_a = ECDF(df[event])(point[event])
+   
     
-    df_final = df_final.fillna(0)
+    cond = pd.merge(cond1,cond2,how='inner',on= ['name','number_of_variables','number_type'])
+    cond['bayes']= cond['prob_ba_x']/cond['prob_ba_y']*prob_a
     
+    cond['bayes_total'] = (cond['prob_ba_x']/cond['prob_ba_y']*prob_a)*cond['prob_ba_y']
+    
+    del cond['prob_ba_x']
+    del cond['prob_ba_y']
+    
+    
+    individual = cond[(cond['number_of_variables']==1)].bayes_total.sum()
+    intersection_odd = cond[(cond['number_type']=='Odd')&
+    (cond['number_of_variables']>1)].bayes_total.sum()
+    intersection_even = cond[(cond['number_type']=='Even')&
+    (cond['number_of_variables']>1)].bayes_total.sum()
 
-    """Calculating the intersects"""
-    df_final['subtract'] = 0
+    space = individual - intersection_odd + intersection_even
+    total = cond['bayes_total'].sum()
     
-    for r in range(0,len(suspects)):
-        name_clean = df_final['name'][r].replace("',)", '') 
-        name_clean = name_clean.replace("('", '') 
-        name_clean
-
-        frameloop = df_final[df_final['name'].str.contains(name_clean)][df_final['number_of_variables']>1]
-        frameloop['pbayes'] = np.where(frameloop['number_type']=='Even',-1*frameloop['pbayes'],frameloop['pbayes'])
-
-        b=0
-        for i in range(0,len(frameloop)):
-        #i=1
-            a=frameloop['pbayes'].iloc[i]/frameloop['number_of_variables'].iloc[i]
-            b=b+a
-        df_final['subtract'].iloc[r] = b
+    cond['bayes_total_final'] = space*cond['bayes_total']/total
+    cond['bayes_total'] = cond['bayes_total_final']
     
-    """Calculating the attribution"""
-    df_final['pbayes_attribution'] = df_final['pbayes']+df_final['subtract']
-    df_final['pbayes_attribution'] = np.where(df_final['pbayes_attribution']<0,0,df_final['pbayes_attribution'])
-    df_final['pbayes_attribution'] = np.where(df_final['number_of_variables']>1,0,df_final['pbayes_attribution'])
+    del cond['bayes_total_final']
     
-    del df_final['number_of_variables']
-    del df_final['number_type']
-    del df_final['subtract']
-    
-    return df_final
+    return cond
